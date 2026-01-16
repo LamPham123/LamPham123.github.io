@@ -1,0 +1,84 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm i
+
+      - name: Build
+        run: npm run build
+
+      - name: Copy content images to build
+        run: |
+          echo "=== Starting image copy ==="
+          
+          # Find and copy all image files from content subdirectories to build
+          find content -maxdepth 2 -type f \( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" -o -iname "*.gif" -o -iname "*.webp" \) | while read img; do
+            # Get the parent directory name (e.g., "gallery" from "content/gallery/image.jpg")
+            dirpath=$(dirname "$img")
+            dirname=$(basename "$dirpath")
+            filename=$(basename "$img")
+            
+            # Skip if it's directly in content (not in a subdirectory)
+            if [ "$dirpath" = "content" ]; then
+              continue
+            fi
+            
+            mkdir -p "build/$dirname"
+            target="build/$dirname/$filename"
+            
+            # If target exists as a directory (from SvelteKit prerender), remove it first
+            if [ -d "$target" ]; then
+              echo "Removing conflicting directory: $target"
+              rm -rf "$target"
+            fi
+            
+            echo "Copying: $img -> $target"
+            cp "$img" "$target"
+          done
+          
+          echo "=== Images copied successfully ==="
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: './build'
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

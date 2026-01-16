@@ -16,13 +16,18 @@ const config = {
       precompress: false,
       strict: true
     }),
-    
+
+    // Base path for GitHub Pages (set via environment variable)
+    paths: {
+      base: process.env.BASE_PATH || ''
+    },
+
     // Custom alias defined to handle the content folder
     alias: {
       $content: path.resolve('./content'),
       $lib: path.resolve('./src/lib')
     },
-    
+
     // Static site pre-processing options
     prerender: {
       crawl: true,
