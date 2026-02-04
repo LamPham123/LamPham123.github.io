@@ -1,67 +1,43 @@
-<script lang="ts">
+<script>
+
   import { page } from '$app/stores';
   import Search from './Search.svelte';
 
-  export interface NavigationBarProps {
-    logo?: string;
-    siteName: string;
-    items: Array<{
-      label: string;
-      url: string;
-      items?: Array<{
-        label: string;
-        url: string;
-      }>;
-    }>;
-    navbarItems?: Array<{
-      title: string;
-      url: string;
-      cta?: boolean;
-      name?: string;
-    }>;
-    activePath?: string;
-    showSearch?: boolean;
-    searchPlaceholder?: string;
-    siteTitle?: string | null;
-    defaultNavItems?: Array<{
-      title: string;
-      url: string;
-      cta?: boolean;
-    }>;
-    hiddenFromNav?: string[];
-  }
+  export let navbarItems = [];
+  export let rootContent = [];
+  export let activePath = '';
+  export let showSearch = false;
+  export let searchPlaceholder = "Search...";
 
-  let {
-    logo = null,
-    siteName = 'Site',
-    items = [],
-    navbarItems = [],
-    activePath = '',
-    showSearch = false,
-    searchPlaceholder = "Search...",
-    siteTitle = null,
-    defaultNavItems = [
-      { title: 'Home', url: '/' }
-    ],
-    hiddenFromNav = []
-  }: NavigationBarProps = $props();
+  // Customizable site branding
+  export let siteTitle = null;
+  export let logo = null; // Can be image URL string or null for default SVG
+
+  // Default navigation items (Home, About, etc.)
+  // Set to empty array to hide all default links
+  export let defaultNavItems = [
+    { title: 'Home', url: '/' }
+  ];
+
+  // Hide specific directories from navbar (by folder name)
+  export let hiddenFromNav = [];
 
   // Filter navbarItems based on hiddenFromNav
-  let filteredNavbarItems = $derived(navbarItems.filter(item => !hiddenFromNav.includes(item.name || '')));
+  $: filteredNavbarItems = navbarItems.filter(item => !hiddenFromNav.includes(item.name));
 
-  let isMenuOpen = $state(false);
-  let isHidden = $state(false);
-  let lastScrollY = $state(0);
-  let scrollY = $state(0);
+  let isMenuOpen = false;
+  let isHidden = false;
+  let lastScrollY = 0;
+  let scrollY = 0;
 
   // Reactive current path from SvelteKit store
-  let currentPath = $derived($page.url.pathname);
+  $: currentPath = $page.url.pathname;
 
   // Find first CTA item from nav items (only first one is used)
-  let ctaItem = $derived([...defaultNavItems, ...filteredNavbarItems].find(item => item.cta));
+  $: ctaItem = [...defaultNavItems, ...filteredNavbarItems].find(item => item.cta);
 
   // Check if a nav item is active (exact match for home, startsWith for others)
-  function isActive(itemUrl: string, path: string): boolean {
+  function isActive(itemUrl, path) {
     if (itemUrl === '/') {
       return path === '/';
     }
@@ -102,16 +78,12 @@
                 <path d="M12 8L12 16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
               </svg>
             </div>
-          {:else if logo && typeof logo === 'string'}
-            <img src={logo} alt={siteTitle || siteName} class="w-8 h-8 object-contain" />
+          {:else if logo}
+            <img src={logo} alt={siteTitle || 'Logo'} class="w-8 h-8 object-contain" />
           {/if}
           {#if siteTitle}
             <span class="font-bold text-xl text-[var(--color-foreground)]">
               {siteTitle}
-            </span>
-          {:else if siteName}
-            <span class="font-bold text-xl text-[var(--color-foreground)]">
-              {siteName}
             </span>
           {/if}
         </a>
@@ -128,6 +100,15 @@
               {item.title}
             </a>
           {/if}
+        {/each}
+
+        {#each rootContent as item}
+          <a
+            href={item.url}
+            class="py-2 px-3 font-medium text-sm transition-colors duration-200 {isActive(item.url, currentPath) ? 'text-[var(--color-primary)]' : 'text-[var(--color-foreground)] hover:text-[var(--color-primary)]'}"
+          >
+            {item.title}
+          </a>
         {/each}
 
         {#each filteredNavbarItems as item}
@@ -194,6 +175,15 @@
           {/if}
         {/each}
 
+        {#each rootContent as item}
+          <a
+            href={item.url}
+            class="block px-3 py-2 rounded-md text-base font-medium {isActive(item.url, currentPath) ? 'bg-surface text-white' : 'text-[var(--color-muted)] hover:bg-surface hover:text-white'}"
+          >
+            {item.title}
+          </a>
+        {/each}
+
         {#each filteredNavbarItems as item}
           {#if !item.cta}
             <a
@@ -214,3 +204,4 @@
     </div>
   {/if}
 </nav>
+
