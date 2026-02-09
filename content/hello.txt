@@ -1,0 +1,10 @@
+---
+title: Hello (Conflict Demo)
+description: This creates a naming conflict with the hello directory
+---
+
+# Naming Conflict Demo
+
+This `hello.txt` file creates a naming conflict with the `/hello/` directory.
+
+When you visit `/hello`, you should see the **Configuration Error** page!
