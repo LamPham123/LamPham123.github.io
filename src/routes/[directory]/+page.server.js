@@ -1,4 +1,4 @@
-import { getContentDirectories, getContentByDirectory, getSubDirectories, getSidebarTree, isGalleryDirectory, getGalleryData, getContentByUrl, detectNamingConflicts } from 'statue-ssg/cms/content-processor';
+import { getContentDirectories, getContentByDirectory, getSubDirectories, getSidebarTree, isGalleryDirectory, getGalleryData, getContentByUrl, detectNamingConflicts, clearContentCache } from 'statue-ssg/cms/content-processor';
 import { error } from '@sveltejs/kit';
 
 // Make this page prerendered as a static page
@@ -6,6 +6,9 @@ export const prerender = true;
 
 /** @type {import('./$types').PageServerLoad} */
 export async function load({ params }) {
+  // Clear cache to ensure fresh conflict detection
+  clearContentCache();
+
   // Get directory name
   const directoryName = params.directory;
 
