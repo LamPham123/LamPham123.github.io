@@ -1,0 +1,28 @@
+---
+title: Features
+description: Example of .txt file support in statue-ssg
+---
+
+# Features
+
+This page demonstrates **.txt file support** in statue-ssg!
+
+## What's New
+
+- 📝 Support for `.txt` files (in addition to `.md`)
+- 🔝 Root-level content files appear in navigation
+- ⚠️ Automatic conflict detection for naming conflicts
+
+## How It Works
+
+Just create a `.txt` file in your content directory with frontmatter, and it works like any markdown file!
+
+```
+---
+title: My Page
+---
+
+# Content here
+```
+
+This file is accessible at `/features`
