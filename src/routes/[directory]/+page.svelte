@@ -56,17 +56,28 @@
 				<div class="bg-red-900/30 border-2 border-red-600/50 rounded-lg p-8">
 					<h1 class="text-3xl font-bold mb-4 text-red-200">⚠️ Configuration Error</h1>
 					<p class="text-lg text-red-100 mb-6">
-						Multiple items found for this path. Please check your content directory:
+						{#if data.conflictData.type === 'directory-file'}
+							Multiple items found for this path. Please check your content directory:
+						{:else if data.conflictData.type === 'file-file'}
+							Multiple files with the same name found for this path:
+						{/if}
 					</p>
 
 					<div class="bg-black/30 p-4 rounded mb-6 font-mono text-sm">
-						<div class="text-yellow-200 mb-2">Directory:</div>
-						<div class="text-white ml-4 mb-4">• {data.conflictData.directory}</div>
+						{#if data.conflictData.type === 'directory-file'}
+							<div class="text-yellow-200 mb-2">Directory:</div>
+							<div class="text-white ml-4 mb-4">• {data.conflictData.directory}</div>
 
-						<div class="text-yellow-200 mb-2">Files:</div>
-						{#each data.conflictData.files as file}
-							<div class="text-white ml-4">• {file}</div>
-						{/each}
+							<div class="text-yellow-200 mb-2">Files:</div>
+							{#each data.conflictData.files as file}
+								<div class="text-white ml-4">• {file}</div>
+							{/each}
+						{:else if data.conflictData.type === 'file-file'}
+							<div class="text-yellow-200 mb-2">Conflicting Files:</div>
+							{#each data.conflictData.files as file}
+								<div class="text-white ml-4">• {file}</div>
+							{/each}
+						{/if}
 					</div>
 
 					<p class="text-red-100 mb-4">

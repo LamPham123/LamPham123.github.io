@@ -712,6 +712,7 @@ const detectNamingConflicts = async () => {
   const allContent = await getAllContent();
   const conflicts = [];
 
+  // Check 1: Directory vs File conflicts
   for (const dir of directories) {
     // Check if there's a root-level file with same name as directory
     const conflictingFiles = allContent.filter(content => {
@@ -726,12 +727,40 @@ const detectNamingConflicts = async () => {
 
     if (conflictingFiles.length > 0) {
       conflicts.push({
+        type: 'directory-file',
         name: dir.name,
         directory: `content/${dir.name}/`,
         files: conflictingFiles.map(f => f.path)
       });
     }
   }
+
+  // Check 2: File vs File conflicts (same name, different extensions)
+  const rootLevelFiles = allContent.filter(content => {
+    const isRootLevel = !content.directory || content.directory === 'root';
+    return isRootLevel;
+  });
+
+  // Group files by their slug (name without extension)
+  const filesBySlug = {};
+  rootLevelFiles.forEach(content => {
+    const fileName = content.path.split('/').pop().replace(/\.(md|txt)$/, '');
+    if (!filesBySlug[fileName]) {
+      filesBySlug[fileName] = [];
+    }
+    filesBySlug[fileName].push(content.path);
+  });
+
+  // Find slugs with multiple files
+  Object.entries(filesBySlug).forEach(([slug, files]) => {
+    if (files.length > 1) {
+      conflicts.push({
+        type: 'file-file',
+        name: slug,
+        files: files
+      });
+    }
+  });
 
   return conflicts;
 };
@@ -754,7 +783,13 @@ const checkNamingConflicts = async () => {
 
   conflicts.forEach(conflict => {
     const fileList = conflict.files.map(f => `   - ${f}`).join('\n');
-    const message = `⚠️  WARNING: Naming conflict detected for "${conflict.name}"\n   Found multiple items with the same name:\n   - ${conflict.directory} (directory)\n${fileList}\n\n   Only one can be accessible at /${conflict.name}/\n   Please rename one to resolve this conflict.\n`;
+
+    let message;
+    if (conflict.type === 'directory-file') {
+      message = `⚠️  WARNING: Naming conflict detected for "${conflict.name}"\n   Found multiple items with the same name:\n   - ${conflict.directory} (directory)\n${fileList}\n\n   Only one can be accessible at /${conflict.name}/\n   Please rename one to resolve this conflict.\n`;
+    } else if (conflict.type === 'file-file') {
+      message = `⚠️  WARNING: Naming conflict detected for "${conflict.name}"\n   Found multiple files with the same name:\n${fileList}\n\n   Only one can be accessible at /${conflict.name}/\n   Please rename one to resolve this conflict.\n`;
+    }
 
     if (isProduction) {
       // In production, throw error to block build
