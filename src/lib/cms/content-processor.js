@@ -327,7 +327,11 @@ const getContentDirectories = () => {
   return directories;
 };
 
-// Function to get root-level content files (not in subdirectories)
+/**
+ * Get root-level content files (not in subdirectories)
+ * Returns array of content objects with name, path, title, and url properties
+ * Excludes gallery metadata .txt files (those paired with an image file)
+ */
 const getRootLevelContent = () => {
   const contentPath = path.resolve('content');
   const rootFiles = [];
