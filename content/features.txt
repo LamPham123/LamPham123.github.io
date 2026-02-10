@@ -1,28 +1,11 @@
----
-title: Features
-description: Example of .txt file support in statue-ssg
----
+Features
 
-# Features
+Statue SSG now supports plain .txt files alongside .md files. This page is itself a .txt file — no markdown, no frontmatter, just text.
 
-This page demonstrates **.txt file support** in statue-ssg!
+Root-level .txt files like this one automatically appear in the navigation bar. The file name becomes the page title, so features.txt becomes "Features".
 
-## What's New
+Paragraphs are separated by blank lines. Single line breaks within a paragraph are kept as-is. No special syntax needed.
 
-- 📝 Support for `.txt` files (in addition to `.md`)
-- 🔝 Root-level content files appear in navigation
-- ⚠️ Automatic conflict detection for naming conflicts
+Text files are great for simple pages, notes, plain documentation, or any content where markdown formatting would just get in the way.
 
-## How It Works
-
-Just create a `.txt` file in your content directory with frontmatter, and it works like any markdown file!
-
-```
----
-title: My Page
----
-
-# Content here
-```
-
-This file is accessible at `/features`
+The content is HTML-escaped before rendering, so angle brackets and special characters are safe to use without escaping them yourself.
