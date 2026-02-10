@@ -56,11 +56,7 @@
 				<div class="bg-red-900/30 border-2 border-red-600/50 rounded-lg p-8">
 					<h1 class="text-3xl font-bold mb-4 text-red-200">⚠️ Configuration Error</h1>
 					<p class="text-lg text-red-100 mb-6">
-						{#if data.conflictData.type === 'directory-file'}
-							Multiple items found for this path. Please check your content directory:
-						{:else if data.conflictData.type === 'file-file'}
-							Multiple files with the same name found for this path:
-						{/if}
+						Multiple items found for this path. Please check your content directory:
 					</p>
 
 					<div class="bg-black/30 p-4 rounded mb-6 font-mono text-sm">

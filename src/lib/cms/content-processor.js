@@ -19,9 +19,10 @@ if (isBrowser) {
 // Try to load site config, but don't fail if not available
 let siteConfig = {};
 try {
-  // eslint-disable-next-line import/no-unresolved
-  const configModule = await import('/site.config.js').catch(() => ({ siteConfig: {} }));
-  siteConfig = configModule.siteConfig || {};
+  const configPath = path.resolve('site.config.json');
+  if (fs.existsSync(configPath)) {
+    siteConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+  }
 } catch {
   // siteConfig not available, will use empty object
 }
@@ -43,21 +44,29 @@ const processMarkdownWithMDSvex = async (markdown) => {
     const { code } = await compile(markdown, mdsvexOptions);
 
     // Extract HTML from mdsvex output
-    // mdsvex outputs Svelte component code, we need to get the template part
-    // The HTML is typically between `<script>` tags (if any) and the end
     let html = code;
 
-    // Remove script tags and their content to get just the template
+    // Remove script tags and their content
     html = html.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
 
-    // Remove any remaining Svelte-specific directives that might break HTML rendering
-    // Keep the HTML structure for {@html} rendering
+    // Remove Svelte {@html `...`} wrappers and keep just the inner HTML
+    // mdsvex wraps code blocks in {@html `...`} which we need to unwrap
+    html = html.replace(/\{@html\s+`([^`]*(?:`[^`]*`)*)`\}/g, '$1');
+
+    // Remove remaining Svelte-specific wrappers
+    html = html.replace(/\{[\s\S]*?\}/g, (match) => {
+      // Keep if it's not a Svelte directive (like {@html} already handled)
+      if (match.startsWith('{@') || match.includes('=>')) {
+        return '';
+      }
+      return match;
+    });
+
     html = html.trim();
 
     return html;
   } catch (error) {
     console.error('MDSvex processing error:', error);
-    // Fallback to simple markdown processing if mdsvex fails
     return `<p>Error processing markdown: ${error.message}</p>`;
   }
 };
@@ -149,14 +158,14 @@ const removeFirstH1 = (html) => {
  * We'll handle this with post-processing since mdsvex uses rehype/remark
  */
 const transformLinks = (html, currentDirectory) => {
-  // Transform internal .md links (but not .txt links)
+  // Transform internal .md links
   return html.replace(/href="([^"]+)"/g, (match, href) => {
     // Skip external links and anchors
     if (href.startsWith('http') || href.startsWith('#') || href.startsWith('mailto:')) {
       return match;
     }
 
-    // Remove .md extension only (keep .txt extensions)
+    // Remove .md extension
     let transformedHref = href;
     if (transformedHref.endsWith('.md')) {
       transformedHref = transformedHref.slice(0, -3);
@@ -196,7 +205,7 @@ const scanContentDirectory = async () => {
       if (stats.isDirectory()) {
         // If it's a folder, scan its contents
         await scanDir(fullPath, entryRelativePath);
-      } else if (stats.isFile() && (entry.endsWith('.md') || entry.endsWith('.txt'))) {
+      } else if (stats.isFile() && (entry.endsWith('.md') || entry.endsWith('.mdx') || entry.endsWith('.txt'))) {
         // Check if this is a gallery metadata .txt file (paired with an image)
         const isGalleryMetadata = entry.endsWith('.txt') && (() => {
           const basename = entry.slice(0, -4); // Remove .txt
@@ -210,9 +219,10 @@ const scanContentDirectory = async () => {
           continue;
         }
 
-        // Add markdown and text files to the list
+        // Add markdown, mdx, and text files to the list
+        const isMdx = entry.endsWith('.mdx');
         const isTxtFile = entry.endsWith('.txt');
-        const slug = entry.replace(/\.(md|txt)$/, '');
+        const slug = entry.replace(/\.(mdx?|txt)$/, '');
         const url = relativePath
           ? `/${relativePath}/${slug}`.replace(/\\/g, '/')
           : `/${slug}`;
@@ -240,7 +250,7 @@ const scanContentDirectory = async () => {
             thumbnail: thumbnail
           };
         } else {
-          // For .md files: extract frontmatter and process markdown
+          // For .md and .mdx files: extract frontmatter and process markdown
           const { data, content: markdownContent } = matter(fileContent);
 
           // Process template variables (both in markdown content and metadata)
@@ -265,16 +275,20 @@ const scanContentDirectory = async () => {
             ...processedMetadata
           };
 
-          // Process markdown to HTML with mdsvex, then remove the first h1 heading
-          html = await processMarkdownWithMDSvex(processedMarkdownContent);
-          html = removeFirstH1(html);
+          // Process content: MDX files are rendered as Svelte components, MD files as HTML
+          if (!isMdx) {
+            html = await processMarkdownWithMDSvex(processedMarkdownContent);
+            html = removeFirstH1(html);
+          }
         }
 
         // Fix directory - use full path
         let directory = relativePath.replace(/\\/g, '/');
 
-        // Transform links for both .md and .txt files
-        html = transformLinks(html, directory);
+        // Transform links for .md and .txt files (not MDX)
+        if (!isMdx) {
+          html = transformLinks(html, directory);
+        }
 
         // Add main directory information to create content tree
         const mainDirectory = directory.split('/')[0] || 'root';
@@ -285,10 +299,10 @@ const scanContentDirectory = async () => {
           url,
           directory,
           mainDirectory,
-          // Depth of the path
           depth: directory === '' ? 0 : directory.split('/').length,
           content: html,
-          metadata: finalMetadata
+          metadata: finalMetadata,
+          isMdx // Flag for MDX files - rendered client-side as Svelte components
         });
       }
     }
@@ -409,8 +423,8 @@ const getAllContent = async () => {
 const getContentByUrl = async (url) => {
   const allContent = await getAllContent();
 
-  // Remove trailing slash (/) from URL for comparison
-  const normalizedUrl = url.endsWith('/') && url !== '/' ? url.slice(0, -1) : url;
+  // Remove trailing slash (/) from URL
+  const normalizedUrl = url.endsWith('/') ? url.slice(0, -1) : url;
 
   console.log('Normalized URL for lookup:', normalizedUrl);
 
@@ -627,82 +641,6 @@ const getAllDirectoriesSidebar = async () => {
   return result;
 };
 
-// Function to check if a directory is a gallery (contains image+text pairs)
-const isGalleryDirectory = (directory) => {
-  const contentPath = path.resolve('content', directory);
-
-  if (!fs.existsSync(contentPath)) {
-    return false;
-  }
-
-  const entries = fs.readdirSync(contentPath);
-  const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
-
-  // Find image files with matching .txt files
-  let pairCount = 0;
-
-  for (const entry of entries) {
-    const ext = path.extname(entry).toLowerCase();
-    if (imageExtensions.includes(ext)) {
-      const basename = path.basename(entry, ext);
-      const txtFile = basename + '.txt';
-
-      if (entries.includes(txtFile)) {
-        pairCount++;
-      }
-    }
-  }
-
-  // Consider it a gallery if we have at least 1 image+text pair
-  return pairCount >= 1;
-};
-
-// Function to get gallery data from a directory
-const getGalleryData = (directory) => {
-  const contentPath = path.resolve('content', directory);
-  const galleryItems = [];
-
-  if (!fs.existsSync(contentPath)) {
-    return galleryItems;
-  }
-
-  const entries = fs.readdirSync(contentPath);
-  const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
-
-  // Find all image files with matching .txt files
-  for (const entry of entries) {
-    const ext = path.extname(entry).toLowerCase();
-
-    if (imageExtensions.includes(ext)) {
-      const basename = path.basename(entry, ext);
-      const txtFile = basename + '.txt';
-      const txtPath = path.join(contentPath, txtFile);
-
-      if (fs.existsSync(txtPath)) {
-        // Read and parse the text file
-        const txtContent = fs.readFileSync(txtPath, 'utf-8');
-        const lines = txtContent.split('\n').filter(line => line.trim());
-
-        const title = lines[0] || basename;
-        const caption = lines.slice(1).join('\n').trim();
-
-        // Image path should reference the content directory
-        const imageSrc = `/${directory}/${entry}`;
-
-        galleryItems.push({
-          src: imageSrc,
-          alt: title,
-          title: title,
-          caption: caption || ''
-        });
-      }
-    }
-  }
-
-  return galleryItems;
-};
-
-// Export functions
 /**
  * Detect naming conflicts between directories and files
  * Returns array of conflicts found
@@ -779,17 +717,12 @@ const checkNamingConflicts = async () => {
 
   // Check if we're in production build mode
   const isProduction = process.env.NODE_ENV === 'production';
-  const isDev = process.env.NODE_ENV === 'development';
 
   conflicts.forEach(conflict => {
     const fileList = conflict.files.map(f => `   - ${f}`).join('\n');
 
-    let message;
-    if (conflict.type === 'directory-file') {
-      message = `⚠️  WARNING: Naming conflict detected for "${conflict.name}"\n   Found multiple items with the same name:\n   - ${conflict.directory} (directory)\n${fileList}\n\n   Only one can be accessible at /${conflict.name}/\n   Please rename one to resolve this conflict.\n`;
-    } else if (conflict.type === 'file-file') {
-      message = `⚠️  WARNING: Naming conflict detected for "${conflict.name}"\n   Found multiple files with the same name:\n${fileList}\n\n   Only one can be accessible at /${conflict.name}/\n   Please rename one to resolve this conflict.\n`;
-    }
+    const directoryLine = conflict.type === 'directory-file' ? `   - ${conflict.directory} (directory)\n` : '';
+    const message = `⚠️  WARNING: Naming conflict detected for "${conflict.name}"\n   Found multiple items with the same name:\n${directoryLine}${fileList}\n\n   Only one can be accessible at /${conflict.name}/\n   Please rename one to resolve this conflict.\n`;
 
     if (isProduction) {
       // In production, throw error to block build
@@ -807,6 +740,7 @@ const checkNamingConflicts = async () => {
   return { hasConflicts: true, conflicts };
 };
 
+// Export functions
 export {
   scanContentDirectory,
   getContentDirectories,
@@ -820,8 +754,6 @@ export {
   processTemplateVariables,
   getSidebarTree,
   getAllDirectoriesSidebar,
-  isGalleryDirectory,
-  getGalleryData,
   detectNamingConflicts,
   checkNamingConflicts
 };
